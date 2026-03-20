@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Violão Gamificado</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+    }
+    .menu {
+      margin-top: 20px;
+    }
+    .btn {
+      display: block;
+      padding: 15px 20px;
+      margin: 10px auto;
+      width: 70%;
+      max-width: 300px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .page {
+      display: none;
+    }
+    .game {
+      margin-top: 20px;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 0 auto;
+      max-width: 400px;
+    }
+    .card {
+      height: 80px;
+      background: #ddd;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+    }
+    .card.active {
+      background: #fff;
+      border: 2px solid #4CAF50;
+    }
+    .score {
+      margin-top: 10px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .back {
+      margin-top: 15px;
+      padding: 10px 15px;
+      background: #ccc;
+      border-radius: 6px;
+      color: #333;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- TELA INICIAL -->
+  <div id="home" class="page">
+    <h1>Violão Gamificado</h1>
+    <p>Escolha uma atividade para praticar</p>
+    <div class="menu">
+      <a id="btn-memoria" class="btn">Memória de Cifras</a>
+      <a id="btn-troca"   class="btn">Tempo da Troca</a>
+      <a id="btn-sequencia" class="btn">Sequência de Acordes</a>
+    </div>
+  </div>
+
+  <!-- TELA JOGO MEMÓRIA DE CIFRAS -->
+  <div id="page-memoria" class="page">
+    <h1>Memória de Cifras</h1>
+    <div class="score">Pontos: <span id="score-value">0</span></div>
+    <div id="board" class="board"></div>
+    <button id="btn-back-memoria" class="back">Voltar</button>
+  </div>
+
+  <!-- TELA JOGO TEMPO DA TROCA -->
+  <div id="page-troca" class="page">
+    <h1>Tempo da Troca</h1>
+    <p>Procure trocar de acorde no momento certo!</p>
+    <div class="score">Pontos: <span id="score-troca">0</span></div>
+    <p id="progressao-display" style="font-size:20px; font-weight:bold;">C – C – G – G – Am – Am – F – F</p>
+    <button id="btn-tocar-metronomo" class="btn">Iniciar Metrônomo</button>
+    <button id="btn-trocou-tempo" class="btn" style="display:none;">Troquei a tempo!</button>
+    <button id="btn-parar-troca" class="btn" style="display:none;">Parar</button>
+    <p id="status-troca"></p>
+  </div>
+
+  <!-- TELA JOGO SEQUÊNCIA DE ACORDES -->
+  <div id="page-sequencia" class="page">
+    <h1>Sequência de Acordes</h1>
+    <p>Escute e repita a sequência corretamente!</p>
+    <div class="score">Pontos: <span id="score-sequencia">0</span></div>
+    <p id="sequencia-display">Progressão atual: <span id="progressao-corrente"></span></p>
+    <p id="status-sequencia"></p>
+    <div id="botoes-acordes" style="margin-top:15px;"></div>
+  </div>
+
+  <script>
+    // =================== ACORDES E ÁUDIO ===================
+    const acordes = [
+      { nome: "C",  tipo: "maior", nivel: 1, imgSrc: "imagens/img_c.png",  notaBase: 261.6 },
+      { nome: "G",  tipo: "maior", nivel: 1, imgSrc: "imagens/img_g.png",  notaBase: 392.0 },
+      { nome: "F",  tipo: "maior", nivel: 2, imgSrc: "imagens/img_f.png",  notaBase: 349.2 },
+      { nome: "Am", tipo: "menor", nivel: 2, imgSrc: "imagens/img_am.png", notaBase: 220.0 },
+      { nome: "Em", tipo: "menor", nivel: 2, imgSrc: "imagens/img_em.png", notaBase: 164.8 },
+      { nome: "Dm", tipo: "menor", nivel: 2, imgSrc: "imagens/img_dm.png", notaBase: 146.8 },
+    ];
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function tocarAcordeParaTroca(nomeAcorde) {
+      const acorde = acordes.find(a => a.nome === nomeAcorde);
+      if (!acorde) return;
+
+      const n1 = audioCtx.createOscillator();
+      const n2 = audioCtx.createOscillator();
+      const n3 = audioCtx.createOscillator();
+      const g1 = audioCtx.createGain();
+      const g2 = audioCtx.createGain();
+      const g3 = audioCtx.createGain();
+
+      const n = acorde.notaBase;
+      const ganho = 0.2;
+
+      n1.type = "sine";
+      n2.type = "sine";
+      n3.type = "sine";
+
+      n1.frequency.setValueAtTime(n, audioCtx.currentTime);
+      n2.frequency.setValueAtTime(n * 1.5, audioCtx.currentTime);
+      n3.frequency.setValueAtTime(n * 2.0, audioCtx.currentTime);
+
+      g1.gain.linearRampToValueAtTime(ganho, audioCtx.currentTime + 0.01);
+      g2.gain.linearRampToValueAtTime(ganho, audioCtx.currentTime + 0.01);
+      g3.gain.linearRampToValueAtTime(ganho, audioCtx.currentTime + 0.01);
+
+      g1.gain.linearRampToValueAtTime(0.0, audioCtx.currentTime + 1.0);
+      g2.gain.linearRampToValueAtTime(0.0, audioCtx.currentTime + 1.0);
+      g3.gain.linearRampToValueAtTime(0.0, audioCtx.currentTime + 1.0);
+
+      n1.connect(g1).connect(audioCtx.destination);
+      n2.connect(g2).connect(audioCtx.destination);
+      n3.connect(g3).connect(audioCtx.destination);
+
+      n1.start(audioCtx.currentTime);
+      n2.start(audioCtx.currentTime);
+      n3.start(audioCtx.currentTime);
+      n1.stop(audioCtx.currentTime + 1.0);
+      n2.stop(audioCtx.currentTime + 1.0);
+      n3.stop(audioCtx.currentTime + 1.0);
+    }
+
+    function tocarMetronomo() {
+      const ctx = audioCtx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "square";
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.0, ctx.currentTime + 0.1);
+
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.1);
+    }
+
+    // =================== TELAS (showPage) ===================
+    const home           = document.getElementById("home");
+    const pageMemoria    = document.getElementById("page-memoria");
+    const pageTroca      = document.getElementById("page-troca");
+    const pageSequencia  = document.getElementById("page-sequencia");
+
+    function showPage(id) {
+      document.querySelectorAll(".page").forEach(p => p.style.display = "none");
+      document.getElementById(id).style.display = "block";
+    }
+
+    document.getElementById("btn-memoria").onclick = () => showPage("page-memoria");
+    document.getElementById("btn-troca").onclick   = () => showPage("page-troca");
+    document.getElementById("btn-sequencia").onclick = () => showPage("page-sequencia");
+    document.getElementById("btn-back-memoria").onclick = () => showPage("home");
+
+    // =================== JOGO 1: MEMÓRIA DE CIFRAS ===================
+    const boardDiv = document.getElementById("board");
+    const scoreDiv = document.getElementById("score-value");
+
+    let scoreMemoria = 0;
+
+    function iniciarJogoMemoria() {
+      scoreMemoria = 0;
+      scoreDiv.textContent = scoreMemoria;
+
+      const pares = [];
+      acordes.forEach(ac => {
+        pares.push({ tipo: "nome",     valor: ac.nome, conteudo: ac.nome });
+        pares.push({ tipo: "diagrama", valor: ac.nome, conteudo: `<img src="${ac.imgSrc}" alt="${ac.nome}" style="width:40px; height:40px;">` });
+      });
+
+      for (let i = pares.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pares[i], pares[j]] = [pares[j], pares[i]];
+      }
+
+      boardDiv.innerHTML = "";
+      let virando = [];
+      let bloquear = false;
+
+      pares.forEach((item, index) => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+        card.dataset.index = index;
+        card.dataset.valor = item.valor;
+
+        if (item.tipo === "diagrama") {
+          card.innerHTML = item.conteudo;
+          card.onclick = () => {
+            if (bloquear) return;
+            if (card.classList.contains("active")) return;
+
+            card.classList.add("active");
+            virando.push(card);
+
+            tocarAcordeParaTroca(item.valor);
+
+            if (virando.length === 2) {
+              bloquear = true;
+              const [a, b] = virando;
+              if (a.dataset.valor === b.dataset.valor) {
+                scoreMemoria += 10;
+                scoreDiv.textContent = scoreMemoria;
+                virando = [];
+                bloquear = false;
+              } else {
+                setTimeout(() => {
+                  a.classList.remove("active");
+                  b.classList.remove("active");
+                  virando = [];
+                  bloquear = false;
+                }, 1000);
+              }
+            }
+          };
+        } else {
+          card.textContent = item.conteudo;
+          card.onclick = () => {
+            if (bloquear) return;
+            if (card.classList.contains("active")) return;
+
+            card.classList.add("active");
+            virando.push(card);
+
+            if (virando.length === 2) {
+              bloquear = true;
+              const [a, b] = virando;
+              if (a.dataset.valor === b.dataset.valor) {
+                scoreMemoria += 10;
+                scoreDiv.textContent = scoreMemoria;
+                virando = [];
+                bloquear = false;
+              } else {
+                setTimeout(() => {
+                  a.classList.remove("active");
+                  b.classList.remove("active");
+                  virando = [];
+                  bloquear = false;
+                }, 1000);
+              }
+            }
+          };
+        }
+
+        boardDiv.appendChild(card);
+      });
+    }
+
+    document.getElementById("btn-memoria").onclick = () => {
+      showPage("page-memoria");
+      iniciarJogoMemoria();
+    };
+
+    // =================== JOGO 2: TEMPO DA TROCA ===================
+    const btnTocarMetronomo    = document.getElementById("btn-tocar-metronomo");
+    const btnTrocouTempo       = document.getElementById("btn-trocou-tempo");
+    const btnPararTroca        = document.getElementById("btn-parar-troca");
+    const scoreTroca           = document.getElementById("score-troca");
+    const progressaoDisplay    = document.getElementById("progressao-display");
+    const statusTroca          = document.getElementById("status-troca");
+
+    let intervaloMetronomo     = null;
+    let compassoAtual          = 0;
+    let acertosSequencia       = 0;
+    let pontosTroca            = 0;
+
+    const progressaoTempo = [
+      { acorde: "C",  texto: "C" },
+      { acorde: "C",  texto: "C" },
+      { acorde: "G",  texto: "G" },
+      { acorde: "G",  texto: "G" },
+      { acorde: "Am", texto: "Am" },
+      { acorde: "Am", texto: "Am" },
+      { acorde: "F",  texto: "F" },
+      { acorde: "F",  texto: "F" },
+    ];
+
+    function atualizarProgressaoTroca() {
+      const texto = progressaoTempo.map((p, i) => {
+        return i === compassoAtual ? `<b>${p.texto}</b>` : p.texto;
+      }).join(" – ");
+      progressaoDisplay.innerHTML = texto;
+    }
+
+    function iniciarTempoDaTroca() {
+      pontosTroca = 0;
+      compassoAtual = 0;
+      acertosSequencia = 0;
+      scoreTroca.textContent = pontosTroca;
+      statusTroca.textContent = "";
+      atualizarProgressaoTroca();
+
+      btnTocarMetronomo.style.display = "none";
+      btnTrocouTempo.style.display = "block";
+      btnPararTroca.style.display = "block";
+
+      const bpm = 60;
+      const tempoSegundos = 60 / bpm;
+
+      intervaloMetronomo = setInterval(() => {
+        tocarMetronomo();
+
+        if (acertosSequencia === 0) return;
+
+        if (acertosSequencia < compassoAtual) {
+          statusTroca.textContent = "Atrasou a troca!";
+          setTimeout(() => {
+            statusTroca.textContent = "";
+          }, 1000);
+        }
+
+        compassoAtual = (compassoAtual + 1) % progressaoTempo.length;
+        atualizarProgressaoTroca();
+      }, tempoSegundos * 1000);
+    }
+
+    function pararTempoDaTroca() {
+      if (intervaloMetronomo) clearInterval(intervaloMetronomo);
+      intervaloMetronomo = null;
+
+      btnTocarMetronomo.style.display = "block";
+      btnTrocouTempo.style.display = "none";
+      btnPararTroca.style.display = "none";
+    }
+
+    function clicouTrocouTempo() {
+      const acordeAtual = progressaoTempo[compassoAtual].acorde;
+      tocarAcordeParaTroca(acordeAtual);
+
+      acertosSequencia = compassoAtual + 1;
+      statusTroca.textContent = "Ótimo, trocou a tempo!";
+
+      setTimeout(() => {
+        statusTroca.textContent = "";
+      }, 1000);
+
+      if (acertosSequencia === progressaoTempo.length) {
+        pontosTroca += 10;
+        scoreTroca.textContent = pontosTroca;
+      }
+    }
+
+    btnTocarMetronomo.onclick = () => {
+      if (intervaloMetronomo) clearInterval(intervaloMetronomo);
+      compassoAtual = 0;
+      acertosSequencia = 0;
+      iniciarTempoDaTroca();
+    };
+
+    btnTrocouTempo.onclick = clicouTrocouTempo;
+
+    btnPararTroca.onclick = () => {
+      pararTempoDaTroca();
+      showPage("home");
+    };
+
+    document.getElementById("btn-troca").onclick = () => {
+      showPage("page-troca");
+      iniciarTempoDaTroca();
+    };
+
+    // =================== JOGO 3: SEQUÊNCIA DE ACORDES ===================
+    const scoreSequencia     = document.getElementById("score-sequencia");
+    const progressaoCorrente = document.getElementById("progressao-corrente");
+    const statusSequencia    = document.getElementById("status-sequencia");
+    const botoesAcordes      = document.getElementById("botoes-acordes");
+
+    let sequenciaCorrente    = [];
+    let indiceJogador        = 0;
+    let pontosSequencia      = 0;
+
+    const acordesDisponiveis = ["C", "G", "F", "Am", "Em", "Dm"];
+
+    function criarBotoesAcordes() {
+      botoesAcordes.innerHTML = "";
+      acordesDisponiveis.forEach(nome => {
+        const btn = document.createElement("button");
+        btn.textContent = nome;
+        btn.classList.add("btn");
+        btn.style.width = "80px";
+        btn.style.margin =
